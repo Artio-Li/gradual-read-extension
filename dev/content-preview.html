@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>渐读内容预览</title>
+    <link rel="stylesheet" href="../dist/content.css" />
+    <style>
+      body { margin: 0; color: #26332d; background: #f5f2e9; font: 17px/1.9 system-ui, sans-serif; }
+      main { width: min(760px, calc(100% - 48px)); margin: 60px auto; padding: 42px; background: #fffdf7; border: 1px solid #ded7c8; border-radius: 18px; box-shadow: 0 24px 70px rgba(68, 58, 39, .1); }
+      h1 { margin-top: 0; color: #263b32; font: 600 38px/1.2 Georgia, serif; }
+      .note { color: #7b857f; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="note">这是开发预览页，会自动运行本地词表引擎。</p>
+      <h1>让日常阅读变成低压力的语言学习</h1>
+      <p>这个浏览器插件会分析页面内容，并根据用户当前的语言水平，逐渐增加可以理解的英语表达。</p>
+      <p>本地模式不会发送网页数据。系统只处理普通文本，并跳过输入框、源代码和其他可能包含隐私的区域。</p>
+      <p>未来可以增加人工智能模型，为复杂短语提供更加自然、准确而且符合上下文的解决方案。</p>
+      <pre><code>const secret = "代码块不会被处理";</code></pre>
+      <label>输入框也不会处理：<input value="用户输入内容" /></label>
+    </main>
+    <script>
+      window.chrome = {
+        runtime: {
+          onMessage: { addListener: () => {} },
+          sendMessage: async (message) => {
+            if (message.type === "GET_STATE") {
+              return {
+                ok: true,
+                data: {
+                  settings: {
+                    cefrLevel: "B2",
+                    intensity: "balanced",
+                    displayMode: "mixed",
+                    autoSites: [location.origin],
+                    provider: { mode: "local", baseUrl: "", model: "", apiKey: "" },
+                  },
+                  stats: {},
+                },
+              };
+            }
+            return { ok: true, data: [] };
+          },
+        },
+      };
+    </script>
+    <script src="../dist/content.js"></script>
+  </body>
+</html>

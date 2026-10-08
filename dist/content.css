@@ -1,0 +1,64 @@
+.gradual-read-wrapper {
+  font: inherit;
+  color: inherit;
+}
+
+.gradual-read-word {
+  position: relative;
+  display: inline;
+  padding: 0 0.08em;
+  color: #19735a !important;
+  background: linear-gradient(transparent 72%, rgba(50, 171, 126, 0.2) 72%);
+  border-bottom: 1px dashed rgba(25, 115, 90, 0.48);
+  cursor: help;
+  font-weight: 600;
+  font-style: normal;
+  text-decoration: none;
+}
+
+.gradual-read-word[data-origin="ai"] {
+  color: #7b5b16 !important;
+  background: linear-gradient(transparent 72%, rgba(218, 177, 76, 0.22) 72%);
+  border-bottom-color: rgba(123, 91, 22, 0.48);
+}
+
+.gradual-read-word:hover::after,
+.gradual-read-word:focus-visible::after {
+  content: attr(data-meaning);
+  position: absolute;
+  z-index: 2147483646;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 260px;
+  padding: 7px 10px;
+  color: #f1f7f3;
+  background: #14231d;
+  border: 1px solid rgba(218, 190, 112, 0.45);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.24);
+  font: 12px/1.4 system-ui, sans-serif;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.gradual-read-bilingual {
+  display: inline-grid;
+  gap: 0.16em;
+  vertical-align: baseline;
+}
+
+.gradual-read-original-line {
+  color: inherit;
+}
+
+.gradual-read-enhanced-line {
+  color: color-mix(in srgb, currentColor 72%, #19735a 28%);
+  font-size: 0.94em;
+}
+
+#gradual-read-card-host {
+  position: fixed;
+  z-index: 2147483647;
+}

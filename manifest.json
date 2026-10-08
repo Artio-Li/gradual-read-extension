@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "渐读｜网页英语学习助手",
+  "short_name": "渐读",
+  "version": "0.1.0",
+  "description": "把日常中文网页变成低压力、可理解的英语接触环境。",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "渐读｜网页英语学习助手",
+    "default_popup": "popup.html"
+  }
+}
