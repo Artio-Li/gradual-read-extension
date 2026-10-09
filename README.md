@@ -1,64 +1,106 @@
 # 渐读｜网页英语学习助手
 
-一个本地优先的 Chrome Manifest V3 扩展，把日常中文网页逐渐改造成低压力的英语接触环境。
+渐读是一个本地优先的 Chrome Manifest V3 扩展，把日常中文网页逐步变成低压力、可理解的英语接触环境。
 
-这是独立实现，不包含或复制任何商业扩展的源代码、素材、提示词或私有词库。
+它是独立实现，不包含或复制任何商业扩展的源代码、素材、提示词或私有词库。
 
-## 当前功能
+## 功能
 
-- 点击后改造当前网页，关闭时恢复原文
-- 本地词表模式，无账号、无 API、无调用费用
-- 轻度、标准、沉浸三档替换密度
-- A1–C2 六档 CEFR 词汇难度
-- 中英混合、原文 + 混合、仅原文三种显示方式
-- 悬停查看中文，点击标记“认识”或“太难”
-- MutationObserver 支持动态加载页面
-- 按网站单独授权自动运行，不默认申请所有网页权限
-- 可选 OpenAI-compatible API 与本地 Ollama
-- AI 返回值经过子串、范围和重叠校验，不允许模型生成 HTML
+- 在普通网页上按需启用，随时一键恢复原文
+- 340 条内置中英词汇与短语，覆盖 A1–C2 参考难度
+- 支持轻度、标准、沉浸三档替换密度
+- 支持中英混合、原文 + 混合、仅原文三种显示方式
+- 本地结果即时展示，AI 结果异步补充
+- DeepSeek 官方 API 快速预设：关闭思考模式、JSON 输出、超时和失败重试
+- OpenAI-compatible API 与本地 Ollama
+- 正文缓存、批次并发和最近请求耗时诊断
+- 悬停释义、英文朗读、认识/太难反馈
+- 学习中心、生词本、简易间隔复习和学习统计
+- 自定义词条、数据导入导出、AI 缓存清理
+- 动态 DOM、SPA 页面增量处理和按网站授权自动运行
 
-## 构建
+> 内置 CEFR 等级是用于渐进阅读的参考分级，并非 Cambridge、Council of Europe 或其他机构认证的官方词表。
+
+## 安装与开发
+
+要求 Node.js 20+、npm 10+、Chrome 120+。
 
 ```bash
 npm install
-npm run check
-npm test
+npm run verify
+```
+
+开发构建输出到 `dist/`：
+
+```bash
 npm run build
 ```
 
-构建结果位于 `dist/`。
+然后打开 `chrome://extensions/`，开启“开发者模式”，点击“加载已解压的扩展程序”，选择项目的 `dist/` 目录。
 
-## 安装到 Chrome
+生成可提交 Chrome Web Store 的压缩包：
 
-1. 打开 `chrome://extensions/`。
-2. 开启右上角“开发者模式”。
-3. 点击“加载已解压的扩展程序”。
-4. 选择本项目的 `dist/` 目录。
-5. 打开普通网页，点击扩展图标，再点击“改造当前页面”。
+```bash
+npm run package
+```
 
-## Ollama 示例
+产物位于 `artifacts/gradual-read-v<version>.zip`。发布准备清单见 [Chrome Web Store 发布指南](docs/CHROME_WEB_STORE.md)。
 
-设置：
+## DeepSeek 配置
 
-- 模式：`本地 + AI 语境增强`
-- Base URL：`http://localhost:11434/v1`
-- 模型：填写本机已经安装的模型名称
-- API Key：留空
+在扩展弹窗中选择：
 
-扩展会在保存或测试连接时请求该接口地址的访问权限。
+1. 增强引擎：`本地 + AI 语境增强`
+2. 接口预设：`DeepSeek 官方 API（快速模式）`
+3. 填入自己的 API Key
+4. 保存后测试连接
 
-## 隐私原则
+预设会自动填写官方 Base URL 和适合短文本增强的模型，并限制输出与等待时间。API Key 仅保存在本机 `chrome.storage.local`。
 
-- 默认只在用户点击后运行。
-- 自动运行权限按网站单独申请。
-- 跳过输入框、密码框、代码块和网页编辑器。
-- 本地模式不发送网页内容。
-- AI 模式只发送本轮待处理的短文本批次。
-- API Key 只写入 `chrome.storage.local`，不使用同步存储。
+## 数据与隐私
 
-## 已知限制
+- 本地模式不会发送网页内容。
+- AI 模式只发送当前批次中需要处理的短文本。
+- 不收集账号、浏览历史、分析数据或遥测数据。
+- API Key 不会包含在备份文件中。
+- 输入框、密码框、代码块和网页编辑器默认不处理。
 
-- 当前内置词表是用于验证产品链路的小型种子词表，不是完整语言数据库。
-- 部分复杂网站会频繁销毁和重建 DOM，需要后续增加站点适配器。
-- AI 兼容接口必须支持 `/chat/completions` 格式。
-- 第一版尚未支持视频字幕和写作助手。
+完整说明见 [PRIVACY.md](PRIVACY.md)。
+
+## 项目结构
+
+```text
+src/background/   扩展后台、AI 接口、缓存与数据操作
+src/content/      页面文本扫描、替换、动态页面兼容
+src/popup/        浏览器工具栏弹窗
+src/options/      学习中心与数据管理
+src/shared/       类型、设置迁移、CEFR 与词表引擎
+tests/            核心引擎测试
+scripts/          构建与商店打包
+public/           扩展静态资源与图标
+docs/             架构和发布文档
+```
+
+更详细的技术说明见 [架构文档](docs/ARCHITECTURE.md)。
+
+## 常用命令
+
+```bash
+npm run check      # TypeScript 类型检查
+npm test           # 单元测试
+npm run build      # 开发构建，包含 source map
+npm run verify     # 类型检查 + 测试 + 构建
+npm run package    # 生产构建并生成商店 zip
+```
+
+## 安全
+
+如果发现安全问题，请不要创建公开 Issue，处理方式见 [SECURITY.md](SECURITY.md)。
+
+## 当前状态
+
+项目当前版本为 `0.2.0`，适合个人日常使用与 Private Chrome Web Store 测试。视频字幕、PDF 专项适配、多设备云同步和 Firefox 版本仍在后续规划中。
+
+## 许可
+
+当前仓库用于个人项目开发，尚未授予公开复制、修改或再分发许可。

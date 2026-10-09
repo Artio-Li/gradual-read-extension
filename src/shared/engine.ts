@@ -1,6 +1,6 @@
 import { LOCAL_LEXICON, type LexiconEntry } from "./lexicon";
 import { cefrRank } from "./cefr";
-import type { ExtensionSettings, LearningStats, Replacement } from "./types";
+import type { CustomLexiconEntry, ExtensionSettings, LearningStats, Replacement } from "./types";
 
 const LIMITS = {
   gentle: { density: 0.09, max: 2 },
@@ -38,20 +38,36 @@ function scoreEntry(
   const stat = stats[entry.target.toLowerCase()];
   const targetLevel = cefrRank(settings.cefrLevel);
   const levelDistance = Math.abs(entry.level - targetLevel);
-  const feedbackPenalty = stat?.status === "known" ? 8 : stat?.status === "hard" ? 3 : 0;
+  const waitingForReview = Boolean(stat?.nextReviewAt && stat.nextReviewAt > Date.now());
+  const feedbackPenalty = stat?.status === "known" && waitingForReview ? 8 : stat?.status === "hard" && waitingForReview ? 3 : 0;
   const exposurePenalty = Math.min(5, stat?.exposures ?? 0) * 0.4;
   const deterministicNoise = (stableHash(`${text}:${entry.source}`) % 100) / 100;
   return 12 - levelDistance * 2 - feedbackPenalty - exposurePenalty + deterministicNoise;
+}
+
+function availableLexicon(customLexicon: CustomLexiconEntry[]): LexiconEntry[] {
+  if (customLexicon.length === 0) return LOCAL_LEXICON;
+  const entries = new Map(LOCAL_LEXICON.map((entry) => [entry.source, entry]));
+  for (const entry of customLexicon) {
+    entries.set(entry.source, {
+      source: entry.source,
+      target: entry.target,
+      gloss: entry.gloss,
+      level: Math.max(1, Math.min(6, Math.round(entry.level))),
+    });
+  }
+  return Array.from(entries.values());
 }
 
 export function createLocalReplacements(
   text: string,
   settings: ExtensionSettings,
   stats: LearningStats = {},
+  customLexicon: CustomLexiconEntry[] = [],
 ): Replacement[] {
   const policy = LIMITS[settings.intensity];
   const candidateLimit = Math.max(1, Math.min(policy.max, Math.ceil((text.length * policy.density) / 3)));
-  const allCandidates = LOCAL_LEXICON.filter(
+  const allCandidates = availableLexicon(customLexicon).filter(
     (entry) => entry.level <= cefrRank(settings.cefrLevel) && text.includes(entry.source),
   )
     .sort((left, right) => {

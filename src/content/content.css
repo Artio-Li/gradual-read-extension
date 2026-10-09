@@ -22,8 +22,8 @@
   border-bottom-color: rgba(123, 91, 22, 0.48);
 }
 
-.gradual-read-word:hover::after,
-.gradual-read-word:focus-visible::after {
+.gradual-read-word:not(.is-card-open):hover::after,
+.gradual-read-word:not(.is-card-open):focus-visible::after {
   content: attr(data-meaning);
   position: absolute;
   z-index: 2147483646;

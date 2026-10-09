@@ -2,7 +2,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { CEFR_OPTIONS, type CefrLevel } from "../shared/cefr";
 import { DEFAULT_SETTINGS } from "../shared/settings";
-import type { ExtensionSettings, RuntimeMessage, RuntimeResponse } from "../shared/types";
+import type {
+  AiDiagnostics,
+  ExtensionSettings,
+  ExtensionState,
+  ProviderPreset,
+  RuntimeMessage,
+  RuntimeResponse,
+} from "../shared/types";
 
 function send<T>(message: RuntimeMessage): Promise<RuntimeResponse<T>> {
   return chrome.runtime.sendMessage(message) as Promise<RuntimeResponse<T>>;
@@ -25,17 +32,21 @@ function App(): React.JSX.Element {
   const [supported, setSupported] = useState(false);
   const [notice, setNotice] = useState("正在读取页面状态…");
   const [busy, setBusy] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<AiDiagnostics | null>(null);
 
   const autoEnabled = useMemo(() => settings.autoSites.includes(origin), [settings.autoSites, origin]);
 
   useEffect(() => {
     void (async () => {
       const [stateResponse, statusResponse, tab] = await Promise.all([
-        send<{ settings: ExtensionSettings }>({ type: "GET_STATE" }),
+        send<ExtensionState>({ type: "GET_STATE" }),
         send<{ active: boolean }>({ type: "GET_ACTIVE_TAB_STATUS" }),
         currentTab(),
       ]);
-      if (stateResponse.ok && stateResponse.data) setSettings(stateResponse.data.settings);
+      if (stateResponse.ok && stateResponse.data) {
+        setSettings(stateResponse.data.settings);
+        setDiagnostics(stateResponse.data.aiDiagnostics);
+      }
       if (statusResponse.ok && statusResponse.data) setActive(statusResponse.data.active);
       if (tab?.url && /^https?:/.test(tab.url)) {
         setSupported(true);
@@ -111,11 +122,27 @@ function App(): React.JSX.Element {
       const response = await send<string>({ type: "TEST_PROVIDER" });
       if (!response.ok) throw new Error(response.error || "连接测试失败");
       setNotice(response.data || "连接成功");
+      const refreshed = await send<ExtensionState>({ type: "GET_STATE" });
+      if (refreshed.ok && refreshed.data) setDiagnostics(refreshed.data.aiDiagnostics);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
     }
+  }
+
+  function selectPreset(preset: ProviderPreset): void {
+    const provider = { ...settings.provider, preset };
+    if (preset === "deepseek") {
+      provider.baseUrl = "https://api.deepseek.com";
+      provider.model = "deepseek-flash";
+      provider.timeoutMs = 18_000;
+    } else if (preset === "ollama") {
+      provider.baseUrl = "http://localhost:11434/v1";
+      provider.model = "qwen2.5:7b";
+      provider.timeoutMs = 30_000;
+    }
+    setSettings({ ...settings, provider });
   }
 
   return (
@@ -214,6 +241,17 @@ function App(): React.JSX.Element {
         {settings.provider.mode === "hybrid" && (
           <div className="provider-fields">
             <label>
+              接口预设
+              <select
+                value={settings.provider.preset}
+                onChange={(event) => selectPreset(event.target.value as ProviderPreset)}
+              >
+                <option value="deepseek">DeepSeek 官方 API（快速模式）</option>
+                <option value="ollama">本地 Ollama</option>
+                <option value="custom">其他 OpenAI-compatible 接口</option>
+              </select>
+            </label>
+            <label>
               OpenAI-compatible Base URL
               <input
                 value={settings.provider.baseUrl}
@@ -244,15 +282,42 @@ function App(): React.JSX.Element {
                 }
               />
             </label>
+            <label>
+              请求超时
+              <select
+                value={settings.provider.timeoutMs}
+                onChange={(event) =>
+                  setSettings({
+                    ...settings,
+                    provider: { ...settings.provider, timeoutMs: Number(event.target.value) },
+                  })
+                }
+              >
+                <option value={10_000}>10 秒</option>
+                <option value={18_000}>18 秒</option>
+                <option value={30_000}>30 秒</option>
+                <option value={60_000}>60 秒</option>
+              </select>
+            </label>
             <button className="secondary" disabled={busy} onClick={() => void testConnection()}>
               测试连接
             </button>
+            {diagnostics && (
+              <p className={`diagnostics ${diagnostics.status === "error" ? "is-error" : ""}`}>
+                最近请求：{(diagnostics.durationMs / 1000).toFixed(1)} 秒
+                {diagnostics.cacheHit ? " · 命中缓存" : ""}
+                {diagnostics.message ? ` · ${diagnostics.message}` : ""}
+              </p>
+            )}
           </div>
         )}
       </section>
 
       <button className="save" disabled={busy} onClick={() => void save()}>
         保存设置
+      </button>
+      <button className="text-button" onClick={() => void chrome.runtime.openOptionsPage()}>
+        打开学习中心 · 生词本与自定义词表
       </button>
       <p className="notice">{notice}</p>
       <footer>不会处理输入框、密码框或网页编辑器；AI 模式只发送待改造的短文本。</footer>

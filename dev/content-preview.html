@@ -36,9 +36,11 @@
                     intensity: "balanced",
                     displayMode: "mixed",
                     autoSites: [location.origin],
-                    provider: { mode: "local", baseUrl: "", model: "", apiKey: "" },
+                    provider: { mode: "local", preset: "custom", baseUrl: "", model: "", apiKey: "", timeoutMs: 18000 },
                   },
                   stats: {},
+                  customLexicon: [],
+                  aiDiagnostics: null,
                 },
               };
             }

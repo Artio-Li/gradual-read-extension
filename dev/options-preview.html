@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>渐读学习中心预览</title>
+    <link rel="stylesheet" href="../dist/options.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      const now = Date.now();
+      const previewState = {
+        settings: {
+          cefrLevel: "B1",
+          intensity: "gentle",
+          displayMode: "mixed",
+          autoSites: [],
+          provider: { mode: "local", preset: "ollama", baseUrl: "http://localhost:11434/v1", model: "qwen2.5:7b", apiKey: "", timeoutMs: 18000 },
+        },
+        stats: {
+          improve: { exposures: 6, status: "known", updatedAt: now, lastSeenAt: now, nextReviewAt: now + 86400000, source: "改善", target: "improve", gloss: "改善、提升", difficulty: 3 },
+          approach: { exposures: 3, status: "hard", updatedAt: now, lastSeenAt: now, nextReviewAt: now - 1000, source: "方法", target: "approach", gloss: "方法、途径", difficulty: 4 },
+          privacy: { exposures: 2, updatedAt: now, lastSeenAt: now, source: "隐私", target: "privacy", gloss: "隐私", difficulty: 3 },
+        },
+        customLexicon: [
+          { id: "preview-entry", source: "发布", target: "release", gloss: "发布版本", level: 3, createdAt: now },
+        ],
+        aiDiagnostics: null,
+      };
+      window.chrome = {
+        runtime: {
+          sendMessage: async (message) => {
+            if (message.type === "GET_STATE") return { ok: true, data: previewState };
+            if (message.type === "ADD_CUSTOM_LEXICON_ENTRY") return { ok: true, data: previewState.customLexicon };
+            if (message.type === "EXPORT_DATA") return { ok: true, data: { schemaVersion: 1, exportedAt: new Date().toISOString(), settings: previewState.settings, stats: previewState.stats, customLexicon: previewState.customLexicon } };
+            return { ok: true };
+          },
+        },
+      };
+    </script>
+    <script src="../dist/options.js"></script>
+  </body>
+</html>

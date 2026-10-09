@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createLocalReplacements, mergeReplacements, normalizeAiReplacements } from "../src/shared/engine";
+import { LOCAL_LEXICON } from "../src/shared/lexicon";
 import { DEFAULT_SETTINGS, normalizeSettings } from "../src/shared/settings";
 
 test("local engine selects non-overlapping entries near the configured CEFR level", () => {
@@ -55,4 +56,37 @@ test("CEFR A1 excludes vocabulary above the selected band", () => {
   const replacements = createLocalReplacements("网站重视隐私，也提供复杂算法。", settings);
   assert.ok(replacements.some((item) => item.source === "网站"));
   assert.ok(!replacements.some((item) => ["隐私", "复杂", "算法"].includes(item.source)));
+});
+
+test("built-in lexicon contains at least 300 unique Chinese entries", () => {
+  assert.ok(LOCAL_LEXICON.length >= 300);
+  assert.equal(new Set(LOCAL_LEXICON.map((entry) => entry.source)).size, LOCAL_LEXICON.length);
+});
+
+test("custom lexicon overrides a built-in translation", () => {
+  const settings = { ...DEFAULT_SETTINGS, cefrLevel: "A1" as const, intensity: "immersive" as const };
+  const replacements = createLocalReplacements("这个网站提供很多学习内容。", settings, {}, [
+    {
+      id: "custom-1",
+      source: "网站",
+      target: "web property",
+      gloss: "自定义网站表达",
+      level: 1,
+      createdAt: Date.now(),
+    },
+  ]);
+  assert.equal(replacements.find((item) => item.source === "网站")?.target, "web property");
+});
+
+test("legacy provider settings infer DeepSeek preset and timeout", () => {
+  const settings = normalizeSettings({
+    provider: {
+      mode: "hybrid",
+      baseUrl: "https://api.deepseek.com",
+      model: "deepseek-flash",
+      apiKey: "test",
+    } as never,
+  });
+  assert.equal(settings.provider.preset, "deepseek");
+  assert.equal(settings.provider.timeoutMs, DEFAULT_SETTINGS.provider.timeoutMs);
 });

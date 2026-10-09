@@ -18,9 +18,11 @@
         autoSites: [],
         provider: {
           mode: "local",
+          preset: "ollama",
           baseUrl: "http://localhost:11434/v1",
           model: "qwen2.5:7b",
           apiKey: "",
+          timeoutMs: 18000,
         },
       };
       window.chrome = {
@@ -28,7 +30,7 @@
         permissions: { request: async () => true },
         runtime: {
           sendMessage: async (message) => {
-            if (message.type === "GET_STATE") return { ok: true, data: { settings: previewSettings, stats: {} } };
+            if (message.type === "GET_STATE") return { ok: true, data: { settings: previewSettings, stats: {}, customLexicon: [], aiDiagnostics: null } };
             if (message.type === "GET_ACTIVE_TAB_STATUS") return { ok: true, data: { active: previewActive } };
             if (message.type === "TOGGLE_ACTIVE_TAB") {
               previewActive = !previewActive;

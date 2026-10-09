@@ -2,8 +2,9 @@
   "manifest_version": 3,
   "name": "渐读｜网页英语学习助手",
   "short_name": "渐读",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "把日常中文网页变成低压力、可理解的英语接触环境。",
+  "minimum_chrome_version": "120",
   "permissions": ["storage", "activeTab", "scripting"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": {
@@ -12,6 +13,22 @@
   },
   "action": {
     "default_title": "渐读｜网页英语学习助手",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
   }
 }
