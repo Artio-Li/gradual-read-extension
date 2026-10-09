@@ -1,4 +1,5 @@
 import { AI_CACHE_KEY, AI_DIAGNOSTICS_KEY } from "../shared/settings";
+import { aiOutputTokenBudget, maxAiReplacements } from "../shared/ai-batching";
 import type {
   AiDiagnostics,
   EnhancedItem,
@@ -17,9 +18,11 @@ type AiCache = Record<string, CachedBatch>;
 
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const CACHE_LIMIT = 300;
-const PROMPT_VERSION = 2;
+const PROMPT_VERSION = 3;
 const RETRYABLE_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 const inFlight = new Map<string, Promise<Replacement[][]>>();
+
+class RetryBySplittingError extends Error {}
 
 function endpointFor(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/, "")}/chat/completions`;
@@ -45,7 +48,11 @@ function parseJsonContent(content: string): unknown {
   return JSON.parse(cleaned);
 }
 
-function sanitizeItems(raw: unknown, input: TextItem[]): EnhancedItem[] {
+function sanitizeItems(
+  raw: unknown,
+  input: TextItem[],
+  replacementLimit: number,
+): EnhancedItem[] {
   if (!raw || typeof raw !== "object") return [];
   const items = (raw as { items?: unknown }).items;
   if (!Array.isArray(items)) return [];
@@ -57,7 +64,7 @@ function sanitizeItems(raw: unknown, input: TextItem[]): EnhancedItem[] {
     .map((item) => ({
       id: String(item.id),
       replacements: Array.isArray(item.replacements)
-        ? item.replacements.slice(0, 12).map((replacement) => {
+        ? item.replacements.slice(0, replacementLimit).map((replacement) => {
             const value = replacement as Record<string, unknown>;
             return {
               start: Number(value.start),
@@ -117,21 +124,19 @@ async function requestCompletion(
   items: TextItem[],
   settings: ExtensionSettings,
 ): Promise<EnhancedItem[]> {
+  const replacementLimit = maxAiReplacements(settings.intensity);
   const system = [
     "You enhance Chinese reading material with low-pressure English exposure.",
-    "Return JSON only in this exact shape: {\"items\":[{\"id\":\"...\",\"replacements\":[{\"start\":0,\"end\":2,\"source\":\"exact Chinese substring\",\"target\":\"natural English\",\"gloss\":\"short Chinese explanation\",\"difficulty\":3}]}]}.",
+    "Return compact JSON only in this exact shape: {\"items\":[{\"id\":\"...\",\"replacements\":[{\"start\":0,\"end\":2,\"source\":\"exact Chinese substring\",\"target\":\"natural English\",\"difficulty\":3}]}]}.",
     "Replace only useful words or short phrases, never names, numbers, URLs, code, or punctuation.",
     "Every source must be an exact substring of the supplied text. Offsets use JavaScript UTF-16 string indexes. Do not return HTML.",
+    `Return at most ${replacementLimit} replacements per item. Use an empty replacements array when no safe replacement exists.`,
     `Learner target vocabulary level is CEFR ${settings.cefrLevel} and replacement intensity is ${settings.intensity}.`,
   ].join("\n");
-  const outputBudget = Math.max(
-    320,
-    Math.min(1_600, 240 + items.reduce((total, item) => total + item.text.length, 0) * 2),
-  );
   const body: Record<string, unknown> = {
     model: settings.provider.model,
     temperature: 0.2,
-    max_tokens: outputBudget,
+    max_tokens: aiOutputTokenBudget(items.length, settings.intensity),
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: system },
@@ -178,11 +183,29 @@ async function requestCompletion(
         choices?: Array<{ finish_reason?: string; message?: { content?: string } }>;
       };
       const choice = payload.choices?.[0];
-      if (choice?.finish_reason === "length") throw new Error("模型返回内容被截断，请减少批次或提高输出上限");
+      if (choice?.finish_reason === "length") {
+        const error = new RetryBySplittingError("模型输出达到长度上限");
+        if (attempt === 0) {
+          lastError = error;
+          body.max_tokens = Math.min(8_192, Number(body.max_tokens) * 2);
+          continue;
+        }
+        throw error;
+      }
       const content = choice?.message?.content;
       if (!content) throw new Error("模型没有返回可解析的内容");
-      return sanitizeItems(parseJsonContent(content), items);
+      try {
+        return sanitizeItems(parseJsonContent(content), items, replacementLimit);
+      } catch (error) {
+        if (error instanceof SyntaxError && attempt === 0) {
+          lastError = error;
+          body.max_tokens = Math.min(8_192, Number(body.max_tokens) * 2);
+          continue;
+        }
+        throw new RetryBySplittingError("模型返回的 JSON 不完整");
+      }
     } catch (error) {
+      if (error instanceof RetryBySplittingError) throw error;
       const normalized =
         error instanceof DOMException && error.name === "AbortError"
           ? new Error(`模型请求超过 ${Math.round(settings.provider.timeoutMs / 1000)} 秒，已取消`)
@@ -204,6 +227,23 @@ async function requestCompletion(
     }
   }
   throw lastError ?? new Error("模型请求失败");
+}
+
+async function requestCompletionResilient(
+  items: TextItem[],
+  settings: ExtensionSettings,
+): Promise<EnhancedItem[]> {
+  try {
+    return await requestCompletion(items, settings);
+  } catch (error) {
+    if (!(error instanceof RetryBySplittingError) || items.length <= 1) throw error;
+    const middle = Math.ceil(items.length / 2);
+    const [left, right] = await Promise.all([
+      requestCompletionResilient(items.slice(0, middle), settings),
+      requestCompletionResilient(items.slice(middle), settings),
+    ]);
+    return [...left, ...right];
+  }
 }
 
 export async function enhanceWithProvider(
@@ -247,7 +287,7 @@ export async function enhanceWithProvider(
   try {
     let pending = inFlight.get(cacheKey);
     if (!pending || options.skipCache) {
-      pending = requestCompletion(items, settings).then((result) => {
+      pending = requestCompletionResilient(items, settings).then((result) => {
         const byId = new Map(result.map((item) => [item.id, item.replacements]));
         return items.map((item) => byId.get(item.id) ?? []);
       });

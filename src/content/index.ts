@@ -1,4 +1,10 @@
-import { createLocalReplacements, mergeReplacements, normalizeAiReplacements } from "../shared/engine";
+import { createAiBatches } from "../shared/ai-batching";
+import {
+  createLocalReplacements,
+  mergeReplacements,
+  normalizeAiReplacements,
+  replacementLimitForText,
+} from "../shared/engine";
 import type {
   CustomLexiconEntry,
   EnhancedItem,
@@ -32,8 +38,7 @@ interface NodeEntry {
 }
 
 const MAX_NODES_PER_SCAN = 72;
-const AI_BATCH_SIZE = 12;
-const AI_CONCURRENCY = 2;
+const AI_CONCURRENCY = 3;
 
 function formatMeaning(source: string, gloss: string): string {
   const normalizedSource = source.trim();
@@ -312,10 +317,11 @@ class GradualReadController {
       this.recordExposures(localExposures);
 
       if (this.settings.provider.mode === "hybrid" && entries.length > 0) {
-        const batches: NodeEntry[][] = [];
-        for (let offset = 0; offset < entries.length; offset += AI_BATCH_SIZE) {
-          batches.push(entries.slice(offset, offset + AI_BATCH_SIZE));
-        }
+        const aiEntries = entries.filter(
+          (entry) =>
+            entry.local.length < replacementLimitForText(entry.text, this.settings!.intensity),
+        );
+        const batches = createAiBatches(aiEntries);
         await runWithConcurrency(batches, AI_CONCURRENCY, async (batch) => {
           await this.enhanceBatch(batch, generation);
         });
@@ -345,8 +351,13 @@ class GradualReadController {
 
     const aiExposures: Replacement[] = [];
     for (const entry of entries) {
+      const remaining = Math.max(
+        0,
+        replacementLimitForText(entry.text, this.settings!.intensity) - entry.local.length,
+      );
+      if (remaining === 0) continue;
       const rawAi = aiItems.find((item) => item.id === entry.id)?.replacements ?? [];
-      const ai = normalizeAiReplacements(entry.text, rawAi, entry.local);
+      const ai = normalizeAiReplacements(entry.text, rawAi, entry.local).slice(0, remaining);
       if (ai.length === 0) continue;
       const merged = mergeReplacements(entry.local, ai);
       const processed = this.processed.get(entry.id);

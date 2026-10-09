@@ -1,3 +1,5 @@
+import { CEFR_J_LEXICON } from "./lexicon-cefrj";
+
 export interface LexiconEntry {
   source: string;
   target: string;
@@ -5,7 +7,7 @@ export interface LexiconEntry {
   level: number;
 }
 
-export const LOCAL_LEXICON: LexiconEntry[] = [
+const CURATED_LEXICON: LexiconEntry[] = [
   { source: "不可或缺", target: "indispensable", gloss: "不可缺少的", level: 6 },
   { source: "错综复杂", target: "intricate", gloss: "复杂且相互关联的", level: 6 },
   { source: "细致入微", target: "nuanced", gloss: "细腻且有层次的", level: 6 },
@@ -347,3 +349,11 @@ export const LOCAL_LEXICON: LexiconEntry[] = [
   { source: "方法论", target: "methodology", gloss: "系统研究方法", level: 6 },
   { source: "范式转变", target: "paradigm shift", gloss: "根本性的思维模式变化", level: 6 },
 ];
+
+// CEFR-J provides the reference level while the smaller curated set wins on
+// Chinese wording and web/technology terminology when a source phrase overlaps.
+export const LOCAL_LEXICON: LexiconEntry[] = Array.from(
+  new Map(
+    [...CEFR_J_LEXICON, ...CURATED_LEXICON].map((entry) => [entry.source, entry]),
+  ).values(),
+);

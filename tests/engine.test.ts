@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLocalReplacements, mergeReplacements, normalizeAiReplacements } from "../src/shared/engine";
+import { aiOutputTokenBudget, createAiBatches } from "../src/shared/ai-batching";
+import {
+  createLocalReplacements,
+  mergeReplacements,
+  normalizeAiReplacements,
+  replacementLimitForText,
+} from "../src/shared/engine";
+import { CEFR_J_LEXICON } from "../src/shared/lexicon-cefrj";
 import { LOCAL_LEXICON } from "../src/shared/lexicon";
 import { DEFAULT_SETTINGS, normalizeSettings } from "../src/shared/settings";
 
@@ -58,9 +65,32 @@ test("CEFR A1 excludes vocabulary above the selected band", () => {
   assert.ok(!replacements.some((item) => ["隐私", "复杂", "算法"].includes(item.source)));
 });
 
-test("built-in lexicon contains at least 300 unique Chinese entries", () => {
-  assert.ok(LOCAL_LEXICON.length >= 300);
+test("built-in lexicon contains at least 2,000 unique Chinese entries", () => {
+  assert.ok(LOCAL_LEXICON.length >= 2_000);
   assert.equal(new Set(LOCAL_LEXICON.map((entry) => entry.source)).size, LOCAL_LEXICON.length);
+});
+
+test("generated vocabulary profiles have balanced A1-C2 coverage", () => {
+  assert.equal(CEFR_J_LEXICON.length, 3_000);
+  for (const level of [1, 2, 3, 4, 5, 6]) {
+    assert.equal(CEFR_J_LEXICON.filter((entry) => entry.level === level).length, 500);
+  }
+});
+
+test("AI batches respect both item and character budgets", () => {
+  const items = Array.from({ length: 8 }, (_, index) => ({ id: String(index), text: "中".repeat(250) }));
+  const batches = createAiBatches(items);
+  assert.deepEqual(batches.map((batch) => batch.length), [4, 4]);
+  assert.ok(batches.every((batch) => batch.reduce((sum, item) => sum + item.text.length, 0) <= 1_200));
+});
+
+test("AI output budget and total replacement limit scale with intensity", () => {
+  assert.ok(aiOutputTokenBudget(6, "immersive") > aiOutputTokenBudget(6, "gentle"));
+  assert.ok(aiOutputTokenBudget(6, "immersive") <= 4_096);
+  assert.equal(
+    replacementLimitForText("这是一个用于测试替换密度的较长中文句子。".repeat(4), "gentle"),
+    2,
+  );
 });
 
 test("custom lexicon overrides a built-in translation", () => {

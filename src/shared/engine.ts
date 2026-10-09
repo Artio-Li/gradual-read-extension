@@ -8,6 +8,14 @@ const LIMITS = {
   immersive: { density: 0.26, max: 7 },
 } as const;
 
+export function replacementLimitForText(
+  text: string,
+  intensity: ExtensionSettings["intensity"],
+): number {
+  const policy = LIMITS[intensity];
+  return Math.max(1, Math.min(policy.max, Math.ceil((text.length * policy.density) / 3)));
+}
+
 function stableHash(value: string): number {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -65,8 +73,7 @@ export function createLocalReplacements(
   stats: LearningStats = {},
   customLexicon: CustomLexiconEntry[] = [],
 ): Replacement[] {
-  const policy = LIMITS[settings.intensity];
-  const candidateLimit = Math.max(1, Math.min(policy.max, Math.ceil((text.length * policy.density) / 3)));
+  const candidateLimit = replacementLimitForText(text, settings.intensity);
   const allCandidates = availableLexicon(customLexicon).filter(
     (entry) => entry.level <= cefrRank(settings.cefrLevel) && text.includes(entry.source),
   )
